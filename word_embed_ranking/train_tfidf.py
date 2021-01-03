@@ -3,7 +3,6 @@ import logging
 import pickle
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-import scipy.sparse as sparse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -13,36 +12,33 @@ c_handler.setFormatter(f_format)
 logger.addHandler(c_handler)
 
 
-def train_tfidf(train_texts, max_features, ngrams=(1, 1), filename='tfidf_model.pkl', return_vectors=True):
-    tfidf_model = TfidfVectorizer(
+def train_tfidf(train_texts, max_features, ngrams=(1, 1), outfile='tf_idf_model.pkl'):
+    tf_idf_model = TfidfVectorizer(
         stop_words='english',
         ngram_range=ngrams,
         max_features=max_features
     )
-    if return_vectors:
-        start_time = time.time()
-        tfidf_vectors = tfidf_model.fit_transform(train_texts)
-        elapsed = '%.2f' % (time.time() - start_time)
-        logger.info(f'Trained tf-idf model. Elapsed: {elapsed}s')
-        pickle.dump(tfidf_model, open(filename, 'wb'))
-        return tfidf_model, tfidf_vectors
-    else:
-        start_time = time.time()
-        tfidf_model.fit(train_texts)
-        elapsed = '%.2f' % (time.time() - start_time)
-        logger.info(f'Trained tf-idf model. Elapsed: {elapsed}s')
-        pickle.dump(tfidf_model, open(filename, 'wb'))
-        return tfidf_model
+    start_time = time.time()
+    logger.info('Training tf-idf model...')
+    tfidf_vectors = tf_idf_model.fit_transform(train_texts)
+    elapsed = '%.2f' % (time.time() - start_time)
+    logger.info(f'Trained tf-idf model. Elapsed: {elapsed}s')
+    with open(outfile, 'wb') as file:
+        pickle.dump(tf_idf_model, file)
+    return tf_idf_model, tfidf_vectors
 
 
 def main():
-    data = pd.read_csv('corpus_cleaned_sample.csv')
-    texts = data['text'].values
+    data = pd.read_csv('data/splited_docs.csv')
+    data = data.loc[~data['text_truncated'].isna()]
+    train_data = data.iloc[:300_000]
+    val_data = data.iloc[300_000:]
+    texts = train_data['text_truncated'].values
 
-    model, vectors = train_tfidf(texts, 100_000, return_vectors=True)
-    sparse.save_npz('vectors', vectors)
+    train_tfidf(texts, 200_000)
+    val_data.to_csv('val_data.csv', index=False)
+    train_data.to_csv('train_data.csv', index=False)
 
 
 if __name__ == '__main__':
     main()
-

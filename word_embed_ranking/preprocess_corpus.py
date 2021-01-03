@@ -1,11 +1,12 @@
 import re
+import argparse
 from tqdm.auto import tqdm
 import pandas as pd
 import spacy
 
 tqdm.pandas()
 
-nlp = spacy.load('en', disable=['parser', 'ner'])
+nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 
 RE_NUMERIC = re.compile(r"[0-9]+", re.UNICODE)
 
@@ -34,12 +35,20 @@ def process_text(text):
 
 
 def main():
-    texts = pd.read_csv('./corpus_with_queries_train_sample1.csv')
-    texts = texts.loc[~texts['text'].isna()]
-    # texts['text'] = texts['text'].progress_apply(process_text)
-    # texts.to_csv('./corpus_cleaned_sample.csv', index=False)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--corpus-file', type=str)
+    parser.add_argument('--outfile', type=str, default='./corpus_cleaned_train.csv')
+    args = parser.parse_args()
+    print(args)
+
+    texts = pd.read_csv(args.corpus_file)
+    texts = texts.loc[~texts['text_truncated'].isna()]
+    print(texts.shape[0])
+
+    texts['text_truncated'] = texts['text_truncated'].progress_apply(process_text)
     texts['query'] = texts['query'].progress_apply(process_text)
-    texts[['query', 'qid', 'doc_id']].to_csv('./queries_cleaned_sample.csv', index=False)
+
+    texts.to_csv(args.outfile, index=False)
 
 
 if __name__ == '__main__':

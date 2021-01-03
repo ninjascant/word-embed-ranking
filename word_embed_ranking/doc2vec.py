@@ -3,23 +3,7 @@ from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-
-
-def read_word_vector_file(file_path):
-    embedding_dict = {}
-    with open(file_path) as file:
-        for i, line in enumerate(file):
-            # if i > 10:
-            #     break
-            values = line.split()
-            word = values[0]
-            vector = np.asarray(values[1:], 'float32')
-            embedding_dict[word] = vector
-    return embedding_dict
-
-
-def get_default_word_vector(vector_shape):
-    return np.zeros(vector_shape, dtype=np.float32)
+from .utils import read_word_vector_file, get_default_word_vector, get_word_vector_size
 
 
 def load_pickle(file_name):
@@ -28,17 +12,12 @@ def load_pickle(file_name):
     return data
 
 
-def get_vector_size(word_embed_dict):
-    embeds = iter(word_embed_dict.values())
-    return next(embeds).shape[0]
-
-
 class DocVectorizer:
     def __init__(self, word_embed_file, tfidf_file):
         self.embed = read_word_vector_file(word_embed_file)
         self.tf_idf_model = load_pickle(tfidf_file)
         self.tf_idf_features = self.tf_idf_model.get_feature_names()
-        self.word_vector_size = get_vector_size(self.embed)
+        self.word_vector_size = get_word_vector_size(self.embed)
 
     def _doc_to_word_vectors(self, doc):
         tokens = doc.split()
@@ -75,18 +54,32 @@ class DocVectorizer:
         return doc_vectors
 
 
-def main():
-    doc2vec = DocVectorizer('model/glove.txt', 'model/tfidf_model.pkl')
-    # tfidf_vectors = sparse.load_npz('model/vectors.npz')
-    # data = pd.read_csv('corpus_cleaned_sample.csv')
-    data = pd.read_csv('queries_cleaned_sample.csv')
-    # texts = data['text'].values
+def convert_docs_to_vecs(doc2vec):
+    tf_idf_vectors = sparse.load_npz('model/vectors.npz')
+    data = pd.read_csv('corpus_cleaned_sample.csv')
+    data = data.loc[~data['text'].isna()]
+    texts = data['text'].values
+
+    vectors = doc2vec.transform(texts, tf_idf_vectors)
+    np.save('model/doc_vectors', vectors)
+
+
+def convert_queries_to_vecs(doc2vec):
+    data = pd.read_csv('data/queries_cleaned_sample.csv')
+    print('Loaded data')
+    # data = data.loc[~data['text'].isna()]
     texts = data['query'].values
 
     tf_idf_vectors = doc2vec.tf_idf_model.transform(texts)
 
     vectors = doc2vec.transform(texts, tf_idf_vectors)
     np.save('model/query_vectors', vectors)
+
+
+def main():
+    doc2vec = DocVectorizer('model/glove.txt', 'model/tfidf_model.pkl')
+    # convert_docs_to_vecs(doc2vec)
+    convert_queries_to_vecs(doc2vec)
 
 
 if __name__ == '__main__':
