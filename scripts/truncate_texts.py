@@ -3,12 +3,17 @@ import argparse
 from tqdm.auto import tqdm
 import pandas as pd
 from nltk.tokenize import word_tokenize
+try:
+    word_tokenize('hello world')
+except LookupError:
+    import nltk
+    nltk.download('punkt')
 
 tqdm.pandas()
 
 DATA_DIR = 'data'
-TRAIN_CORPUS_FILE = os.path.join(DATA_DIR, 'train_corpus.csv')
-DEV_CORPUS_FILE = os.path.join(DATA_DIR, 'dev_corpus.csv')
+TRAIN_CORPUS_FILE = os.path.join(DATA_DIR, 'corpus_with_queries_train.csv')
+DEV_CORPUS_FILE = os.path.join(DATA_DIR, 'corpus_with_queries_dev.csv')
 
 
 def process_data_chunk(chunk):
@@ -43,7 +48,7 @@ def main():
         chunk = process_data_chunk(chunk)
         processed_chunks.append(chunk)
     processed_data = pd.concat(processed_chunks)
-    processed_data.to_csv(os.path.join(DATA_DIR, f'{args.type}_corpus_truncated.csv'), index=False)
+    processed_data.to_csv(os.path.join(DATA_DIR, f'corpus_truncated_{args.type}.csv'), index=False)
 
 
 if __name__ == '__main__':

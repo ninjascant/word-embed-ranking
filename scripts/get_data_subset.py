@@ -8,6 +8,7 @@ import pandas as pd
 csv.field_size_limit(sys.maxsize)
 
 DATA_DIR = './raw_data'
+OUT_DIR = './data'
 TRAIN_QREL_FILE_PATH = os.path.join(DATA_DIR, 'qrels_train.tsv')
 DEV_QREL_FILE_PATH = os.path.join(DATA_DIR, 'qrels_dev.tsv')
 CORPUS_FILE_PATH = os.path.join(DATA_DIR, 'docs.tsv')
@@ -31,6 +32,9 @@ def main():
     qrels = qrels[['qid', 'doc_id']]
 
     train_doc_ids = set(qrels['doc_id'].values)
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+
     print(f'Extracting {args.type} corpus subset')
 
     processed_rows = []
@@ -41,7 +45,7 @@ def main():
                 continue
             processed_rows.append(row)
     processed_rows = pd.DataFrame(processed_rows, columns=['doc_id', 'url', 'title', 'text'])
-    processed_rows.to_csv(f'data/{args.type}_corpus.csv', index=False)
+    processed_rows.to_csv(os.path.join(OUT_DIR, f'{args.type}_corpus.csv'), index=False)
 
 
 if __name__ == '__main__':
