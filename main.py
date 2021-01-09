@@ -17,10 +17,10 @@ def get_query_res(idx, query_vectors, data, index, n_res):
     return reciprocal_rank, res
 
 
-def compute_mrr():
+def compute_mrr(corpus_file, outfile):
     doc_vectors = np.load('model/wc_doc_vectors.npy')
     query_vectors = np.load('model/wc_query_vectors.npy')
-    data = pd.read_csv('data/corpus_cleaned_train.csv', skiprows=range(1, 50_001), nrows=10_000)
+    data = pd.read_csv(corpus_file, skiprows=range(1, 50_001), nrows=10_000)
 
     index = build_annoy_index(doc_vectors, num_trees=300)
 
@@ -37,7 +37,7 @@ def compute_mrr():
     data = data.iloc[:sample_size]
     data['rank'] = ranks
     print('%.2f' % (data.loc[data['rank'] == 0].shape[0] * 100 / sample_size))
-    data[['doc_id', 'qid', 'query', 'rank']].to_csv('ranked_queries1.csv', index=False)
+    data[['doc_id', 'qid', 'query', 'rank']].to_csv(outfile, index=False)
 
 
 def str2bool(v):
@@ -71,7 +71,7 @@ def main():
     elif task == 'vectorize':
         vectorize_docs(args.corpus_file, args.outfile)
     elif task == 'compute_mrr':
-        compute_mrr()
+        compute_mrr(args.corpus_file, args.outfile)
 
 
 if __name__ == '__main__':
