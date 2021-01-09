@@ -29,7 +29,7 @@ class TextCleanerTest(unittest.TestCase):
         cleaned = text_cleaner.transform(sentences, show_progress=False)
         preprocessed_texts = lemmatizer.transform(cleaned, show_progress=False)
 
-        is_correct_len = [len(text.original_text.split()) == len(text.lemmatized_text.split())
+        is_correct_len = [len(text.original_text.split()) == len(text.preprocessed_text.split())
                           for text in preprocessed_texts]
         assert all(is_correct_len)
 
@@ -47,8 +47,8 @@ class TextCleanerTest(unittest.TestCase):
         lemmatizer_without_clean = Lemmatizer(remove_pronouns=False)
         preprocessed_texts = lemmatizer_without_clean.transform(cleaned, show_progress=False)
 
-        cleaned_has_not_pron = ['-PRON-' not in text.lemmatized_text for text in cleaned_preprocessed_texts]
-        preprocessed_has_pron = ['-PRON-' in text.lemmatized_text for text in preprocessed_texts]
+        cleaned_has_not_pron = ['-PRON-' not in text.preprocessed_text for text in cleaned_preprocessed_texts]
+        preprocessed_has_pron = ['-PRON-' in text.preprocessed_text for text in preprocessed_texts]
         assert all(cleaned_has_not_pron)
         assert any(preprocessed_has_pron)
 
