@@ -28,16 +28,17 @@ def train_tfidf(train_texts, max_features, ngrams=(1, 1), outfile='tf_idf_model.
     return tf_idf_model, tfidf_vectors
 
 
+def remove_sent(text):
+    return ' '.join(text.split('.'))
+
+
 def main():
-    data = pd.read_csv('data/splited_docs.csv')
-    data = data.loc[~data['text_truncated'].isna()]
-    train_data = data.iloc[:300_000]
-    val_data = data.iloc[300_000:]
-    texts = train_data['text_truncated'].values
+    data = pd.read_csv('data/tfidf_train_texts.csv')
+    data.loc[data['original'].isna(), 'original'] = ''
+    texts = data['original'].values
+    texts = [remove_sent(text) for text in texts]
 
     train_tfidf(texts, 200_000)
-    val_data.to_csv('val_data.csv', index=False)
-    train_data.to_csv('train_data.csv', index=False)
 
 
 if __name__ == '__main__':
