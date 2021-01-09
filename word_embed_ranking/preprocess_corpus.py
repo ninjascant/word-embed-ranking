@@ -27,6 +27,12 @@ def _check_nltk():
         nltk.download('punkt')
 
 
+@dataclass
+class PreprocessedText:
+    original_text: str
+    preprocessed_text: str
+
+
 class SpacyTokenizer:
     def __init__(self):
         nlp = English()
@@ -71,12 +77,6 @@ class TextCleaner:
         return [self._clean_text(text) for text in text_iter]
 
 
-@dataclass
-class LemmatizedText:
-    original_text: str
-    lemmatized_text: str
-
-
 class Lemmatizer:
     def __init__(self, max_len=None, remove_pronouns=False):
         self.nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
@@ -105,7 +105,7 @@ class Lemmatizer:
         lemmatized_sentences = [self._lemmatize_sentence(sentence) for sentence in sentences]
         raw_text = '. '.join([item[0] for item in lemmatized_sentences])
         lemmatized_text = '. '.join([item[1] for item in lemmatized_sentences])
-        return LemmatizedText(raw_text, lemmatized_text)
+        return PreprocessedText(raw_text, lemmatized_text)
 
     def fit(self):
         return self
@@ -141,10 +141,25 @@ class Stemmer:
         stemmed_text = '. '.join(stemmed)
         return stemmed_text
 
-    def transform(self, texts, show_progress=False):
+    def transform(self, texts, show_progress=True):
         if show_progress:
             text_iter = tqdm(texts)
         else:
             text_iter = texts
 
         return [self._stem_text(text) for text in text_iter]
+
+
+class StemmerLemmatizer:
+    def __init__(self, max_len=None, remove_pronouns=True):
+        self.lemmatizer = Lemmatizer(max_len=max_len, remove_pronouns=remove_pronouns)
+        self.stemmer = Stemmer()
+
+    def fit(self):
+        return self
+
+    def transform(self, texts):
+        lemmatized = self.lemmatizer.transform(texts)
+        lemmatized_texts = [text.preprocessed_text for text in lemmatized]
+        stemmed_texts = self.stemmer.transform(lemmatized_texts)
+        return [PreprocessedText(item[0], item[1]) for item in zip(lemmatized_texts, stemmed_texts)]
