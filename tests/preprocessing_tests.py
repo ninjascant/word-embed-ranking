@@ -1,6 +1,6 @@
 import unittest
 from itertools import zip_longest
-from word_embed_ranking.preprocess_corpus import TextCleaner, Lemmatizer
+from word_embed_ranking.preprocess_corpus import TextCleaner, Lemmatizer, Stemmer
 
 
 class TextCleanerTest(unittest.TestCase):
@@ -33,7 +33,8 @@ class TextCleanerTest(unittest.TestCase):
                           for text in preprocessed_texts]
         assert all(is_correct_len)
 
-    def test_remove_pronouns(self):
+    @staticmethod
+    def test_remove_pronouns():
         with open('tests/raw_texts.txt') as file:
             sentences = file.readlines()
 
@@ -50,3 +51,14 @@ class TextCleanerTest(unittest.TestCase):
         preprocessed_has_pron = ['-PRON-' in text.lemmatized_text for text in preprocessed_texts]
         assert all(cleaned_has_not_pron)
         assert any(preprocessed_has_pron)
+
+    @staticmethod
+    def test_stem_sentences():
+        with open('tests/cleaned_texts.txt') as file:
+            sentences = file.readlines()
+
+        stemmer = Stemmer()
+        stemmed = stemmer.transform(sentences, show_progress=False)
+
+        is_correct_len = [len(item[0].split()) == len(item[1].split()) for item in zip_longest(sentences, stemmed)]
+        assert all(is_correct_len)

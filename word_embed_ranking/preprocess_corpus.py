@@ -6,6 +6,7 @@ import spacy
 from spacy.tokenizer import Tokenizer
 from spacy.lang.en import English
 from nltk.tokenize import sent_tokenize
+from nltk.stem import PorterStemmer
 
 tqdm.pandas()
 
@@ -118,5 +119,32 @@ class Lemmatizer:
             text_iter = texts
 
         texts = [self._lemmatize_text(text) for text in text_iter]
-        print(texts)
         return texts
+
+
+class Stemmer:
+    def __init__(self):
+        self.stemmer = PorterStemmer()
+
+    def fit(self):
+        return self
+
+    def _stem_sentence(self, sentence):
+        words = sentence.split()
+        stems = [self.stemmer.stem(word) for word in words]
+        stemmed_sentence = ' '.join(stems)
+        return stemmed_sentence
+
+    def _stem_text(self, text):
+        sentences = text.split('.')
+        stemmed = [self._stem_sentence(sentence) for sentence in sentences]
+        stemmed_text = '. '.join(stemmed)
+        return stemmed_text
+
+    def transform(self, texts, show_progress=False):
+        if show_progress:
+            text_iter = tqdm(texts)
+        else:
+            text_iter = texts
+
+        return [self._stem_text(text) for text in text_iter]
