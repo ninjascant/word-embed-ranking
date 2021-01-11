@@ -24,9 +24,7 @@ def preprocess_for_tfidf(corpus_file, outfile, sample_size, use_stemming, text_f
     lemmatizer = Lemmatizer(n_jobs=8, remove_pronouns=False)
 
     texts = data[text_field].values
-    logger.info('Preprocessing texts')
     cleaned_texts = text_cleaner.transform(texts)
-    logger.info('Lemmatizing texts')
     lemmatized_texts = lemmatizer.transform(cleaned_texts)
     lemmatized_texts = pd.DataFrame(lemmatized_texts, columns=['text'])
     lemmatized_texts.to_csv(outfile, index=False)

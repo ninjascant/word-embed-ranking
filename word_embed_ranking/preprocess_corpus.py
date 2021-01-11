@@ -1,3 +1,4 @@
+import logging
 import re
 import string
 import time
@@ -14,6 +15,14 @@ tqdm.pandas()
 RE_NUMERIC = re.compile(r"[0-9]+", re.UNICODE)
 RE_PUNCT = re.compile(r'([%s])+' % re.escape(string.punctuation), re.UNICODE)
 RE_WHITESPACE = re.compile(r"(\s)+", re.UNICODE)
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+c_handler = logging.StreamHandler()
+f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+c_handler.setFormatter(f_format)
+logger.addHandler(c_handler)
 
 
 def truncate_to_n_words(text, n_words):
@@ -34,7 +43,38 @@ class PreprocessedText:
     preprocessed_text: str
 
 
-class TextCleaner:
+class BaseTransformerMultiprocess:
+    def __init__(self, n_jobs, batch_size, processing_func):
+        self.n_jobs = n_jobs
+        self.batch_size = batch_size
+        self.processing_func = processing_func
+
+    def _process_batch(self, batch):
+        result = [self.processing_func(text) for text in batch]
+        return result
+
+    def fit(self):
+        return self
+
+    def transform(self, texts):
+        partitions = minibatch(texts, size=self.batch_size)
+        executor = Parallel(n_jobs=self.n_jobs, backend="multiprocessing", prefer="processes")
+
+        do = delayed(self._process_batch)
+        tasks = (do(batch) for i, batch in enumerate(partitions))
+
+        logger.info(f'{self.__class__.__name__}: Start processing texts...')
+        start_time = time.time()
+        res = executor(tasks)
+        res = [item for items in res for item in items]
+        logger.info(f'{self.__class__.__name__}: Processed texts. Elapsed: {time.time() - start_time}')
+        return res
+
+
+class TextCleaner(BaseTransformerMultiprocess):
+    def __init__(self, n_jobs=4, batch_size=1000):
+        super().__init__(n_jobs, batch_size, self.clean_text)
+
     @staticmethod
     def _clean_sentence(text):
         text = text.lower()
@@ -47,26 +87,16 @@ class TextCleaner:
             text = text[:-1]
         return text
 
-    def _clean_text(self, text):
+    def clean_text(self, text):
         sentences = sent_tokenize(text)
         cleaned = [self._clean_sentence(sentence) for sentence in sentences]
         cleaned = '. '.join(cleaned)
         return cleaned
 
-    def fit(self):
-        return self
 
-    def transform(self, texts, show_progress=True):
-        if show_progress:
-            text_iter = tqdm(texts)
-        else:
-            text_iter = texts
-
-        return [self._clean_text(text) for text in text_iter]
-
-
-class Lemmatizer:
-    def __init__(self, model_name='en_core_web_sm', batch_size=1000, n_jobs=4, remove_pronouns=True):
+class Lemmatizer(BaseTransformerMultiprocess):
+    def __init__(self, batch_size=1000, n_jobs=4, model_name='en_core_web_sm', remove_pronouns=True):
+        super().__init__(n_jobs, batch_size, self.lemmatize_text)
         self.nlp = spacy.load(model_name, disable=['parser', 'ner'])
         self.batch_size = batch_size
         self.n_jobs = n_jobs
@@ -84,22 +114,6 @@ class Lemmatizer:
         lemmas = self._check_pronouns(lemmas, self.remove_pronouns)
         lemmatized = ' '.join(lemmas)
         return lemmatized
-
-    def _process_batch(self, batch):
-        result = [self.lemmatize_text(text) for text in batch]
-        return result
-
-    def transform(self, texts):
-        partitions = minibatch(texts, size=self.batch_size)
-        executor = Parallel(n_jobs=self.n_jobs, backend="multiprocessing", prefer="processes")
-
-        do = delayed(self._process_batch)
-        tasks = (do(batch) for i, batch in enumerate(partitions))
-        start_time = time.time()
-        res = executor(tasks)
-        res = [item for items in res for item in items]
-        print(f'Elapsed: {time.time() - start_time}')
-        return res
 
 
 class Stemmer:
