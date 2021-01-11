@@ -18,15 +18,19 @@ def get_query_res(idx, query_vectors, data, index, n_res):
 
 
 def compute_mrr(corpus_file, outfile):
-    doc_vectors = np.load('model/wc_doc_vectors.npy')
-    query_vectors = np.load('model/wc_query_vectors.npy')
-    data = pd.read_csv(corpus_file, skiprows=range(1, 50_001), nrows=10_000)
+    doc_vectors = np.load('model/doc_vectors.npy')
+    query_vectors = np.load('model/query_vectors.npy')
+    data = pd.read_csv(
+        corpus_file,
+        # skiprows=range(1, 50_001),
+        nrows=10_000
+    )
 
     index = build_annoy_index(doc_vectors, num_trees=300)
 
     sample_size = doc_vectors.shape[0]
 
-    ranking_res = [get_query_res(i, query_vectors, data, index, 20)
+    ranking_res = [get_query_res(i, query_vectors, data, index, 100)
                    for i in tqdm(range(sample_size))]
     ranks = [item[0] for item in ranking_res]
 
@@ -66,8 +70,7 @@ def main():
     task = args.task
 
     if task == 'preprocess':
-        preprocess_for_tfidf(args.corpus_file, args.outfile, args.sample_size, args.use_stemming, args.max_len,
-                             args.text_field)
+        preprocess_for_tfidf(args.corpus_file, args.outfile, args.sample_size, args.use_stemming, args.text_field)
     elif task == 'vectorize':
         vectorize_docs(args.corpus_file, args.outfile)
     elif task == 'compute_mrr':

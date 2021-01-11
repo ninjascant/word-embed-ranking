@@ -1,10 +1,11 @@
 import re
 import string
+import time
+from joblib import Parallel, delayed
 from dataclasses import dataclass
 from tqdm.auto import tqdm
 import spacy
-from spacy.tokenizer import Tokenizer
-from spacy.lang.en import English
+from spacy.util import minibatch
 from nltk.tokenize import sent_tokenize
 from nltk.stem import PorterStemmer
 
@@ -31,19 +32,6 @@ def _check_nltk():
 class PreprocessedText:
     original_text: str
     preprocessed_text: str
-
-
-class SpacyTokenizer:
-    def __init__(self):
-        nlp = English()
-        self.tokenizer = Tokenizer(nlp.vocab)
-
-    def fit(self):
-        return self
-
-    def transform(self, text):
-        tokens = self.tokenizer(text)
-        return [token.text for token in tokens]
 
 
 class TextCleaner:
@@ -78,48 +66,40 @@ class TextCleaner:
 
 
 class Lemmatizer:
-    def __init__(self, max_len=None, remove_pronouns=False):
-        self.nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
-        self.max_len = max_len
+    def __init__(self, model_name='en_core_web_sm', batch_size=1000, n_jobs=4, remove_pronouns=True):
+        self.nlp = spacy.load(model_name, disable=['parser', 'ner'])
+        self.batch_size = batch_size
+        self.n_jobs = n_jobs
         self.remove_pronouns = remove_pronouns
 
-    def _truncate_texts(self, texts):
-        return [truncate_to_n_words(text, self.max_len) for text in texts]
-
-    def _check_pronouns(self, tokens):
-        if self.remove_pronouns:
-            tokens = [token for token in tokens if token[1] != '-PRON-']
+    @staticmethod
+    def _check_pronouns(tokens, remove_pronouns):
+        if remove_pronouns:
+            tokens = [token for token in tokens if token != '-PRON-']
         return tokens
 
-    def _lemmatize_sentence(self, text):
+    def lemmatize_text(self, text):
         doc = self.nlp(text)
-        tokens = [token for token in doc]
-        tokens = [(token.text, token.lemma_) for token in tokens]
-        tokens = self._check_pronouns(tokens)
-        lemmas = ' '.join([token[1] for token in tokens])
-        raw_text = ' '.join([token[0] for token in tokens])
-        return raw_text, lemmas
+        lemmas = [token.lemma_ for token in doc]
+        lemmas = self._check_pronouns(lemmas, self.remove_pronouns)
+        lemmatized = ' '.join(lemmas)
+        return lemmatized
 
-    def _lemmatize_text(self, text):
-        sentences = text.split('.')
-        lemmatized_sentences = [self._lemmatize_sentence(sentence) for sentence in sentences]
-        raw_text = '. '.join([item[0] for item in lemmatized_sentences])
-        lemmatized_text = '. '.join([item[1] for item in lemmatized_sentences])
-        return PreprocessedText(raw_text, lemmatized_text)
+    def _process_batch(self, batch):
+        result = [self.lemmatize_text(text) for text in batch]
+        return result
 
-    def fit(self):
-        return self
+    def transform(self, texts):
+        partitions = minibatch(texts, size=self.batch_size)
+        executor = Parallel(n_jobs=self.n_jobs, backend="multiprocessing", prefer="processes")
 
-    def transform(self, texts, show_progress=True):
-        if self.max_len:
-            texts = self._truncate_texts(texts)
-        if show_progress:
-            text_iter = tqdm(texts)
-        else:
-            text_iter = texts
-
-        texts = [self._lemmatize_text(text) for text in text_iter]
-        return texts
+        do = delayed(self._process_batch)
+        tasks = (do(batch) for i, batch in enumerate(partitions))
+        start_time = time.time()
+        res = executor(tasks)
+        res = [item for items in res for item in items]
+        print(f'Elapsed: {time.time() - start_time}')
+        return res
 
 
 class Stemmer:
@@ -148,18 +128,3 @@ class Stemmer:
             text_iter = texts
 
         return [self._stem_text(text) for text in text_iter]
-
-
-class StemmerLemmatizer:
-    def __init__(self, max_len=None, remove_pronouns=True):
-        self.lemmatizer = Lemmatizer(max_len=max_len, remove_pronouns=remove_pronouns)
-        self.stemmer = Stemmer()
-
-    def fit(self):
-        return self
-
-    def transform(self, texts):
-        lemmatized = self.lemmatizer.transform(texts)
-        lemmatized_texts = [text.preprocessed_text for text in lemmatized]
-        stemmed_texts = self.stemmer.transform(lemmatized_texts)
-        return [PreprocessedText(item[0], item[1]) for item in zip(lemmatized_texts, stemmed_texts)]
