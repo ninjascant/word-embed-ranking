@@ -1,21 +1,23 @@
 import logging
 import pickle
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import Normalizer
 from tqdm.auto import tqdm
+import numpy as np
+from sklearn.preprocessing import Normalizer
 import scipy.sparse as sparse
 from .utils import read_word_vector_file, get_word_vector_size, get_default_word_vector, EN_STOP_WORDS
-
-tqdm.pandas()
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 c_handler = logging.StreamHandler()
-f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 c_handler.setFormatter(f_format)
 logger.addHandler(c_handler)
+
+
+def load_pickle_file(file_path):
+    with open(file_path, 'rb') as file:
+        data = pickle.load(file)
+    return data
 
 
 class WordCentroidVectorizer:
@@ -26,16 +28,7 @@ class WordCentroidVectorizer:
         self.word_embed_dict = word_embed_dict
         self.word_embed_size = word_embed_size
 
-        if tf_idf_file:
-            with open(tf_idf_file, 'rb') as file:
-                self.vectorizer = pickle.load(file)
-            self.tf_idf_pretrained = True
-        else:
-            self.vectorizer = TfidfVectorizer(
-                max_features=200_000,
-                stop_words='english'
-            )
-            self.tf_idf_pretrained = False
+        self.tf_idf_model = load_pickle_file(tf_idf_file)
 
         self.normalizer = Normalizer(norm='l2')
         self.vocab = None
@@ -54,7 +47,7 @@ class WordCentroidVectorizer:
         return word_embed_dict, word_embed_vocab, word_embed_size
 
     def _construct_word_embed_matrix(self):
-        vocab = self.vectorizer.get_feature_names()
+        vocab = self.tf_idf_model.get_feature_names()
         vocab_size = len(vocab)
         word_embed_matrix = np.zeros((vocab_size, self.word_embed_size))
 
@@ -63,13 +56,8 @@ class WordCentroidVectorizer:
 
         self.word_embed_matrix = word_embed_matrix
 
-    def fit(self, train_texts):
-        if not self.tf_idf_pretrained:
-            logger.info('Start training tf-idf model')
-            self.vectorizer.fit(train_texts)
-            logger.info('Trained tf-idf model')
-
-        self.vocab = self.vectorizer.get_feature_names()
+    def fit(self):
+        self.vocab = self.tf_idf_model.get_feature_names()
 
         logger.info('Start constructing word embedding matrix')
         self._construct_word_embed_matrix()
@@ -91,7 +79,7 @@ class WordCentroidVectorizer:
         return top_term_vectors
 
     def transform(self, texts):
-        term_occur_matrix = self.vectorizer.transform(texts)
+        term_occur_matrix = self.tf_idf_model.transform(texts)
         if self.n_top_terms is not None:
             term_occur_matrix = self._get_top_terms_for_texts(term_occur_matrix)
         word_centroid_matrix = term_occur_matrix.dot(self.word_embed_matrix)
@@ -100,5 +88,5 @@ class WordCentroidVectorizer:
         return word_centroid_matrix
 
     def fit_transform(self, texts):
-        self.fit(texts)
+        self.fit()
         return self.transform(texts)
